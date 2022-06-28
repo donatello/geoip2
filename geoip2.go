@@ -15,7 +15,10 @@
 package geoip2
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"io/ioutil"
 	"net/http"
 
 	"golang.org/x/net/context"
@@ -88,12 +91,23 @@ func (a *Api) fetch(ctx context.Context, prefix, ipAddress string) (Response, er
 	// handle errors that may occur
 	// http://dev.maxmind.com/geoip/geoip2/web-services/#Response_Headers
 	if resp.StatusCode >= 400 && resp.StatusCode < 600 {
-		v := Error{}
-		err := json.NewDecoder(resp.Body).Decode(&v)
+		// Save body for debugging.
+		buf, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
+			// Error reading the body.
 			return Response{}, err
 		}
-
+		respContent := string(buf)
+		br := bytes.NewBuffer(buf)
+		// Try to parse body as JSON as it appears content-type is not always
+		// set properly.
+		v := Error{
+			HTTPStatus: resp.StatusCode,
+		}
+		if err := json.NewDecoder(br).Decode(&v); err != nil {
+			v.Err = fmt.Sprintf("Error parsing error response as JSON: %s", respContent)
+			return Response{}, v
+		}
 		return Response{}, v
 	}
 
@@ -101,5 +115,8 @@ func (a *Api) fetch(ctx context.Context, prefix, ipAddress string) (Response, er
 	// http://dev.maxmind.com/geoip/geoip2/web-services/#Response_Body
 	response := Response{}
 	err = json.NewDecoder(resp.Body).Decode(&response)
+	if err != nil {
+		err = fmt.Errorf("Error parsing response as JSON: %v", err)
+	}
 	return response, err
 }

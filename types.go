@@ -17,6 +17,7 @@ package geoip2
 import "fmt"
 
 type Error struct {
+	HTTPStatus int `json:"-"`
 	Code string `json:"code,omitempty"`
 	Err  string `json:"error,omitempty"`
 }
